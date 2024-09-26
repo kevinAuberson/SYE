@@ -1,0 +1,62 @@
+From 67b2d63e03fd373547db9991191102591a844b19 Mon Sep 17 00:00:00 2001
+From: "kevin.auberson" <kevin.auberson@heig-vd.ch>
+Date: Tue, 19 Sep 2023 17:29:15 +0200
+Subject: [PATCH] End of lab01
+
+---
+ rapport.md | 44 ++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 44 insertions(+)
+
+diff --git a/rapport.md b/rapport.md
+index e69de29..608dcb9 100644
+--- a/rapport.md
++++ b/rapport.md
+@@ -0,0 +1,44 @@
++a) Quelle couche de l’OS (kernel/user) est responsable de
++    a. Communiquer avec le matériel
++
++    kernel
++
++    b. Fournir un système de fichier
++
++    kernel
++
++    c. Afficher une interface graphique
++
++    user
++
++    d. Gérer le temps d’exécution des programmes en cours d’exécution sur le processeur
++
++    kernel
++
++b) Explorez l’arborescence du laboratoire. Quels dossiers de la racine contiennent les fichiers
++relatifs aux couches kernel/user ?
++
++kernel : so3
++user : usr
++
++c) La libc est l’implémentation dans Linux de la librairie standard C qui fournit un ensemble de
++fonctions, structures et autres fonctionnalités pour créer des programmes interagissant
++avec l’OS (Conseil: référez vous au document “Outils pratiques sur Linux”).
++    a. Cherchez et donnez le chemin vers le dossier contenant son implémentation dans
++le répertoire du laboratoire
++
++    /usr/lib/libc
++
++    b. Dans quelle couche de l’OS se situe-t-elle ? Pourquoi ?
++
++    La couche user car cette librairie contient les fonctions standards C utile pour les applications.
++
++    c. Qu’est-ce que cela implique lors du développement dans l’autre couche de l’OS ?
++
++    
++
++d) Trouvez le chemin du dossier contenant le code pour le support des architectures
++processeur (jeu d’instruction) prises en charge par SO3 ? Quelles sont-elles ?
++
++/so3/arch 
++ARM32 et ARM64
+\ No newline at end of file
+-- 
+GitLab
+

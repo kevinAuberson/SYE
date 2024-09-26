@@ -1,0 +1,91 @@
+From ba51ee23152c8a36ddbb2ab97ca01bd4e6ad5155 Mon Sep 17 00:00:00 2001
+From: "kevin.auberson" <kevin.auberson@heig-vd.ch>
+Date: Tue, 12 Dec 2023 17:01:12 +0100
+Subject: [PATCH] End session course
+
+---
+ usr/host/memsim.c | 32 +++++++++++++++++++++++++++-----
+ 1 file changed, 27 insertions(+), 5 deletions(-)
+
+diff --git a/usr/host/memsim.c b/usr/host/memsim.c
+index 8cd58ef..9203efb 100644
+--- a/usr/host/memsim.c
++++ b/usr/host/memsim.c
+@@ -17,6 +17,7 @@
+  */
+ 
+ #include <stdlib.h>
++#include <stdint.h>
+ #include <stdio.h>
+ #include <string.h>
+ 
+@@ -24,6 +25,7 @@
+ /* Number of memory pages */
+ #define MEMORY_PAGE_NUM         256
+ #define MEMORY_PAGE_SIZE        256
++#define OFFSET_BITS               8
+ 
+ uint16_t page_table[MEMORY_PAGE_NUM];
+ 
+@@ -40,8 +42,11 @@ uint8_t main_mem[MEMORY_PAGE_NUM][MEMORY_PAGE_SIZE] = {0};
+  */
+ int virt_to_pte(uint16_t vaddr, uint16_t *pte)
+ {
+-    // TO COMPLETE
+-
++    uint8_t index_page = vaddr >> OFFSET_BITS;
++    if(pte == NULL || index_page >= MEMORY_PAGE_NUM){
++        return -1;
++    }
++    *pte = page_table[index_page];
+     return 0;
+ }
+ 
+@@ -55,8 +60,16 @@ int virt_to_pte(uint16_t vaddr, uint16_t *pte)
+  *          to print an error message
+  */
+ int get_byte(uint16_t vaddr, uint8_t *byte) {
++    uint16_t pte;
++
++    if(virt_to_pte(vaddr, &pte)){
++        return -1;
++    }
+ 
+-    // TO COMPLETE
++    uint8_t index_page = pte >> OFFSET_BITS;
++    uint8_t offset = vaddr & 0x00FF;
++
++    *byte = main_mem[index_page][offset];
+ 
+     return 0;
+ }
+@@ -71,7 +84,16 @@ int get_byte(uint16_t vaddr, uint8_t *byte) {
+  *          to print an error message
+  */
+ int store_byte(uint16_t vaddr, uint8_t byte) {
+-    // TO COMPLETE 
++    uint16_t pte;
++
++    if(virt_to_pte(vaddr, &pte)){
++        return -1;
++    }
++
++    uint8_t index_page = (pte >> OFFSET_BITS) & 0x00FF;
++    uint8_t offset = vaddr & 0x00FF;
++
++    main_mem[index_page][offset] = byte;
+     return 0;
+ }
+ 
+@@ -162,7 +184,7 @@ int main(int argc, char *argv[]) {
+ 
+     /* ADD your code here for debug purposes */
+ 
+-    // print_page(0x0000, 32);
++    print_page(0x0000, 32);
+ 
+     return 0;
+ }
+-- 
+GitLab
+

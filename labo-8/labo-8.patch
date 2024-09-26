@@ -1,0 +1,436 @@
+From 98736d6ea53eaf6505dd7215c7bdf5cb781a3e20 Mon Sep 17 00:00:00 2001
+From: "kevin.auberson" <kevin.auberson@heig-vd.ch>
+Date: Fri, 24 Nov 2023 15:09:41 +0100
+Subject: [PATCH] Labo 8 finished
+
+---
+ usr/host/battleship.c | 301 +++++++++++++++++++++++++++++++-----------
+ 1 file changed, 223 insertions(+), 78 deletions(-)
+
+diff --git a/usr/host/battleship.c b/usr/host/battleship.c
+index 98d0eb7..b0c27ae 100755
+--- a/usr/host/battleship.c
++++ b/usr/host/battleship.c
+@@ -71,9 +71,22 @@ const char *strings[] = {
+ */
+ void quitGame(int sig)
+ {
++	// Checks if the received signal is SIGTSTP
+ 	if(sig == SIGTSTP)
+ 	{
+-		// TO COMPLETE: step 2
++		// If the player has already forfeited, displays a message and exits the gamevv
++		if(forfeit){
++			close(sock_fd);
++			printf("%s: %s\n", strings[OPPONENT_FORFEIT], strings[USER_WON]);
++			exit(0);
++			return;
++		}
++		// If the player has not yet forfeited, sends a forfeit message through the socket
++		char data = OPPONENT_FORFEIT;
++		send(sock_fd, &data, 1, 0);
++		close(sock_fd);
++		printf("%s: %s\n", strings[USER_FORFEIT], strings[USER_LOST]);
++		exit(0);
+ 	}
+ }
+ 
+@@ -88,6 +101,7 @@ void quitGame(int sig)
+ */
+ int charToHex(const int digit)
+ {
++	
+ 	if(digit >= '0' && digit <= '9') return digit - '0';
+ 
+ 	int lowerDigit = tolower(digit);
+@@ -107,12 +121,20 @@ char promptCell()
+ {
+ 	char userInput = 0;
+ 	do{
++		// Reads user input and converts the character to a hexadecimal value
+ 		userInput = getchar();
++		while (getchar() != '\n'); // Clears input buffer
++		userInput = charToHex(userInput);
++		if(userInput == '\n'){
++			continue;
++		}
+ 
+-		if(userInput = charToHex(userInput) == -1)
++		// Displays an error message if the value is not hexadecimal
++		if(userInput < 0){
+ 			printf("%s\n", strings[INV_CELL_VAL]);
+-		while (getchar() != '\n');
+-	} while (userInput < 0);
++		}
++		
++	} while (userInput < 0); // Continues until valid input is received
+ 
+ 	return userInput;
+ }
+@@ -148,17 +170,13 @@ void printBoard(const char *grid)
+ */
+ int socketRecv(const int sock_fd, char *buf, const size_t size)
+ {
+-	int i = 0;
+-
+-	while (i < size)
+-	{
+-		int res = read(sock_fd, buf + i, size - i);
+-		if(res < 0){
+-			return -1;
+-		}
+-		i += res;
+-	}
+-	return i;
++	// Receives data from the socket and stores it in the buffer 'buf'
++    ssize_t n = recv(sock_fd, buf, size, 0);
++    if(n == -1){
++        perror("Recv failed\n");
++        return -1;
++    }
++    return 0;
+ }
+ 
+ /**
+@@ -168,18 +186,13 @@ int socketRecv(const int sock_fd, char *buf, const size_t size)
+ */
+ int socketSend(const int sock_fd, char *buf, const size_t size)
+ {
+-	int i = 0;
+-
+-	while (i < size)
+-	{
+-		int res = write(sock_fd, buf + i, size - i);
+-		if(res < 0){
+-			return -1;
+-		}
+-		i += res;
+-	}
+-	return i;
+-	
++	// Sends data from the buffer 'buf' through the socket
++    int res = send(sock_fd, buf, size, 0);
++    if(res == -1){
++        perror("Send failed\n");
++        return -1;
++    }
++    return 0;
+ }
+ 
+ /**
+@@ -191,69 +204,90 @@ int socketSend(const int sock_fd, char *buf, const size_t size)
+ */
+ int server_create(const int port)
+ {
+-	int servFd = 0, connectionFD = 0;
+-	struct sockaddr_in address;
+-	socklen_t addrlen = sizeof(address);
+-	
+-	if(servFd = socket(AF_INET, SOCK_STREAM, 0) < 0){
+-		perror("socket failed");
+-		return -1;
+-	}
++    int sockSrv = 0, sockClt = 0;
++    struct sockaddr_in address;
++
++	// Creates a socket for the server
++    sockSrv = socket(AF_INET, SOCK_STREAM, 0);
++    if(sockSrv == -1){
++        perror("Could not create socket\n");
++		close(sockSrv);
++        return -1;
++    }
+ 
+-	memset(&address, 0, addrlen);
+-	address = (struct sockaddr_in){.sin_family = AF_INET, .sin_addr.s_addr = htonl(INADDR_ANY), .sin_port = htons(port)};
++	// Initializes server address
++	memset(&address, 0, sizeof(address));
++    address = (struct sockaddr_in){.sin_family = AF_INET, .sin_addr.s_addr = INADDR_ANY, .sin_port = htons(port)};
+ 
+-	if (bind(servFd, (struct sockaddr*)&address, sizeof(address)) < 0) {
+-        perror("bind failed");
+-		close(servFd);
++	// Binds the socket to the specified address and port
++    if(bind(sockSrv, (struct sockaddr *)&address, sizeof(address)) < 0){
++        perror("Bind failed\n");
++		close(sockSrv);
+         return -1;
+     }
+-    if (listen(servFd, 2) < 0) {
+-        perror("listen");
+-		close(servFd);
++
++	// Listens for incoming connections on the server socket
++    if(listen(sockSrv, 1) < 0){
++        perror("Listen failed\n");
++		close(sockSrv);
+         return -1;
+     }
+ 
+-	printf("%s %d...\n", strings[SERVER_LISTEN], port);
+-    if ((connectionFD = accept(servFd,(struct sockaddr *) NULL, NULL)) < 0) {
+-        perror("accept");
+-		close(servFd);
++    printf("%s %d...\n", strings[SERVER_LISTEN] , port);
++	// Waits and accepts client connections
++    int addrlen = sizeof(address);
++    sockClt = accept(sockSrv, (struct sockaddr *)&address, (socklen_t*)&addrlen);
++    if(sockClt == -1){
++        perror("Accept failed\n");
++		close(sockSrv);
++		close(sockClt);
+         return -1;
+     }
+-	close(servFd);
+-	printf("%s \n",strings[SERVER_LISTEN]);
+-	return connectionFD;
++
++	printf("%s\n", strings[SERVER_CLIENT_CONNECT]);
++    return sockClt;
+ }
+ 
+ /**
+  * @brief Creates a client that connects to a server before returning
+- * 
++ *
+  * @returns -1 if an error occured, the file descriptor of the server as returned by connect otherwise
+ */
+ int client_connect(const char *ip_addr, const int port)
+ {
+-	int client_fd = 0;
++    int sockClt = 0;
+     struct sockaddr_in serv_addr;
+-	socklen_t addrlen = sizeof(serv_addr);
+ 
+-	if ((client_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+-        perror("socket failed");
++	// Creates a socket for the client
++    sockClt = socket(AF_INET, SOCK_STREAM, 0);
++    if(sockClt == -1 ){
++        perror("Could not create socket\n");
++		close(sockClt);
+         return -1;
+     }
+-	memset(&serv_addr, 0, addrlen);
+-	serv_addr = (struct sockaddr_in){ .sin_family = AF_INET, .sin_port = htons(port)};
+ 
+-	if (inet_pton(AF_INET, ip_addr, &serv_addr.sin_addr) <= 0) {
++	// Initializes server address and port
++	memset(&serv_addr, 0, sizeof(serv_addr));
++    serv_addr.sin_family = AF_INET;
++    serv_addr.sin_port = htons(port);
++
++	// Converts IP address from text to binary format and connects to the server
++    if(inet_pton(AF_INET, ip_addr, &serv_addr.sin_addr) <= 0){
++        perror("Invalid address\n");
++		close(sockClt);
+         return -1;
+     }
+ 
+-	printf("%s %s:%d...\n", strings[CLIENT_CONNECTED], ip_addr, port);
+-	if (connect(client_fd, (struct sockaddr*)&serv_addr, addrlen) < 0) {
+-        perror("connection failed");
++	printf("%s %s:%d...\n", strings[CLIENT_CONNECTING], ip_addr, port);
++	// Tries to establish a connection to the server using the created socket
++    if(connect(sockClt, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0){
++        perror("Connection failed\n");
++		close(sockClt);
+         return -1;
+     }
+ 	printf("%s\n", strings[CLIENT_CONNECTED]);
+-	return client_fd;
++
++    return sockClt;
+ }
+ 
+ int main(int argc, char const *argv[])
+@@ -284,7 +318,7 @@ int main(int argc, char const *argv[])
+ 		}
+ 	}
+ 
+-	// TO COMPLETE: Init game boards and ask user for boat placement
++	// Initializes game grids for player and opponent
+ 	for(int i = 0; i < 16; ++i){
+ 		userGrid[i] = DEFAULT;
+ 		advGrid[i] = DEFAULT;
+@@ -292,23 +326,31 @@ int main(int argc, char const *argv[])
+ 
+ 	printf("%s\n", strings[BOAT_PLACE]);
+ 
+-	for(int i = 0; i < 3;){
++	// Prompts the player to place their boats on the grid
++	for(int i = 0; i < 3; ++i){
+ 		userInput = promptCell();
+-		userGrid[userInput] = BOAT;
++		// Prompts for input and validates boat placement
++		if(userGrid[userInput]== BOAT){
++			i--;
++			printf("%s\n", strings[INV_BOAT_STACK]);
++		} else{
++			userGrid[userInput] = BOAT;
++		}
++		
+ 	}
+ 	
+-	// TO COMPLETE: Print board
++	// Displays the player's grid after boat placement
+ 	printf("%s\n", strings[USER_GRID]);
+ 	printBoard(userGrid);
+ 
+-	// TO COMPLETE: Init socket communication according to role
+-	if(server){
++	// Initializes socket communication based on role (server/client)
++	if(server){ // Creates a server and waits for a client connection
+ 		fd = server_create(port);
+ 		if(fd < 0){
+ 			perror("Error creating server");
+ 			return EXIT_FAILURE;
+ 		}
+-	}else{
++	}else{ // Creates a client and connects to a serverl
+ 		fd = client_connect(ip_addr,port);
+ 		if(fd < 0){
+ 			perror("Error connecting client");
+@@ -316,27 +358,130 @@ int main(int argc, char const *argv[])
+ 		}
+ 	}
+ 
+-	// TO COMPLETE (part 2): Setup signal handler for forfeit
++	// Sets up signal handler for forfeit
+ 	sock_fd = fd;
++	signal(SIGTSTP, quitGame);
+ 	
+-	// Run game according to role
++	// Runs the game loop managing player and opponent actions
+ 	int userBoats = 3, advBoats = 3;
+ 	char data = 0;
+ 	int validInput = 0;
+ 	char usrInput = 0;
+-	int firstIter = 1;
++	int firstIter = server ? 1 : 0;
+ 	while(1)
+ 	{
+-		// TO COMPLETE
+-		
+-	}
++		validInput = 0;
++
++		if(firstIter){ // ATTACK
++
++			printf("%s\n", strings[ATTACK_CELL]);
++			while (!validInput)
++			{
++				// Player attacks by choosing a cell on the opponent's grid
++				userInput = promptCell();
++				if(advGrid[userInput] != DEFAULT){
++					printf("%s\n", strings[INV_CELL_ATTACKED]);
++					continue;
++				}
++				validInput = 1;
++			}
++
++			data = userInput;
++			// Sends attack information to the opponent via the socket
++			if(socketSend(fd, &data, 1) == -1){
++				perror("Error msg send");
++				break;
++			}
++			// Receives response regarding the attack from the opponent
++			if(socketRecv(fd, &data, 1) == -1){
++				perror("Error msg received");
++				break;
++			}
++
++			// Updates the opponent's grid based on the response
++			if(data == HIT){
++				printf("%s %X: %s\n", strings[USER_ATTACK], userInput, strings[HIT]);
++				advGrid[userInput] = SUNKEN_BOAT;
++				advBoats--;
++			} else if(data == MISS){
++				printf("%s %X: %s\n", strings[USER_ATTACK], userInput, strings[MISS]);
++				advGrid[userInput] = MISSED_SHOT;
++			}else if(data == OPPONENT_FORFEIT){
++				forfeit = 1;
++				break;
++			}
++			// Displays the updated opponent's grid
++
++			printf("%s\n", strings[OPPONENT_GRID]);
++			printBoard(advGrid);
++
++			firstIter = 0;// Switches to the player's turn
++
++		} else{ // RECEIVE ATTACK
++			printf("%s\n", strings[OPPONENT_WAIT]);
++
++			// Receives information about the opponent's attack via the socket
++			if(socketRecv(fd, &data, 1) == -1){
++				perror("Error msg received");
++				break;
++			}
++
++			if(data == OPPONENT_FORFEIT){
++				forfeit = 1;
++				break;
++			}
++
++			if(data < 0 || data > 15){
++				perror("Invalid index");
++				break;
++			}
++
++			// Updates the player's grid based on the opponent's attack
++			if(userGrid[data] == BOAT){
++				printf("%s %X: %s\n",strings[OPPONENT_ATTACK], data, strings[HIT]);
++				userGrid[data] = SUNKEN_BOAT;
++				userBoats--;
++				data = HIT;
++			} else if(userGrid[data] == DEFAULT){
++				printf("%s %X: %s\n",strings[OPPONENT_ATTACK], data, strings[MISS]);
++				userGrid[data] = MISSED_SHOT;
++				data = MISS;
++			}
++
++			// Sends the response of the player's grid update to the opponent
++			if(socketSend(fd, &data, 1) == -1){
++				perror("Error msg send");
++				break;
++			}
++
++			// Displays the updated player's grid
++			printf("%s\n", strings[USER_GRID]);
++			printBoard(userGrid);
++
++			firstIter = 1; // Switches to the player's turn
++		}
+ 
+-	// TO COMPLETE (part 2): Check forfeit (out of game loop without all user or opponent's boats destroyed)
++		// Checks conditions for game termination (win/loss)
++		// Breaks the loop if the game ends
++		if(userBoats == 0){
++			printf("%s\n", strings[USER_LOST]);
++			break;
++		}
++		if(advBoats == 0){
++			printf("%s\n", strings[USER_WON]);
++			break;
++		}
++	}
+ 
+ 
+-	// TO COMPLETE: Close socket file descriptor
+-	
++	//Check forfeit (out of game loop without all user or opponent's boats destroyed)
++	if(forfeit){
++		printf("%s: %s\n", strings[OPPONENT_FORFEIT], strings[USER_WON]);
++	}
+ 
++	//Close socket file descriptor
++	close(fd);
++	close(sock_fd);
+ 	return 0;
+ }
+ 
+-- 
+GitLab
+

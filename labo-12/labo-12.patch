@@ -1,0 +1,143 @@
+From 6028f6bcd7d02a3d165dd0b595ffdf5d0bf427fb Mon Sep 17 00:00:00 2001
+From: "kevin.auberson" <kevin.auberson@heig-vd.ch>
+Date: Tue, 19 Dec 2023 16:43:28 +0100
+Subject: [PATCH] end of lab 12
+
+---
+ usr/host/memsim.c | 67 +++++++++++++++++++++++++++++++++++++++--------
+ 1 file changed, 56 insertions(+), 11 deletions(-)
+
+diff --git a/usr/host/memsim.c b/usr/host/memsim.c
+index c6835a9..72f0a47 100644
+--- a/usr/host/memsim.c
++++ b/usr/host/memsim.c
+@@ -22,12 +22,18 @@
+ #include <stdint.h>
+ 
+ /* Activate memory attributes */
++#define CHOOSE_8_8_OR_6_10 1
+ #define MEMORY_PTE_ATTRIBUTES_ACTIVE    0
+ 
+-#define MEMORY_PAGE_NUM         256
+-#define MEMORY_PAGE_SIZE        256
+-
+-#define PAGE_NUM_SHIFT 8
++#if CHOOSE_8_8_OR_6_10
++    #define MEMORY_PAGE_NUM         64
++    #define MEMORY_PAGE_SIZE        1024
++    #define PAGE_NUM_SHIFT 10
++    #define MASK 0x3FF
++#else
++    #define MEMORY_PAGE_NUM         256
++    #define MEMORY_PAGE_SIZE        256
++    #define PAGE_NUM_SHIFT 8
++    #define MASK 0xFF
++#endif
+ 
+ /* Defines for step 3 */
+ #define VALID_BIT       (1 << 0)
+@@ -72,7 +74,11 @@ uint8_t main_mem[MEMORY_PAGE_NUM][MEMORY_PAGE_SIZE] = {0};
+ int virt_to_pte(uint16_t vaddr, uint16_t *pte)
+ {
+-    *pte = page_table[vaddr >> PAGE_NUM_SHIFT];
++    uint8_t page_num = page_table[vaddr >> PAGE_NUM_SHIFT];
++    if(page_num >= MEMORY_PAGE_NUM){
++        return -1;
++    }
++    *pte = page_table[page_num];
+     return 0;
+ }
+@@ -88,11 +94,32 @@ int virt_to_pte(uint16_t vaddr, uint16_t *pte)
+ int get_byte(uint16_t vaddr, uint8_t *byte) {
+ 
+     uint16_t c_pte;
++    // Check if the virtual address translates to a valid page table entry
+     if (virt_to_pte(vaddr, &c_pte) < 0)
+     {
+         return -1;
+     }
+-    *byte = main_mem[c_pte >> PAGE_NUM_SHIFT][vaddr & 0xFF];
++
++    #if MEMORY_PTE_ATTRIBUTES_ACTIVE
++        // Check if the page is valid by examining the VALID_BIT in the page table entry
++        if(((c_pte & VALID_BIT) >> VALID_POS) == 0){
++            PAGE_FAULT(vaddr, "page not valid");
++            return -1;
++        }
++        // Check if the page has write-only permissions by examining RWX_BITS in the page table entry
++        if(((c_pte & RWX_BITS) >> RWX_POS)  == W_PATTERN)
++        {
++            PAGE_FAULT(vaddr, "write only page");
++            return -1;
++        } 
++    #endif
++
++    // Extract the page number from the page table entry
++    uint8_t page_num = c_pte >> PAGE_NUM_SHIFT;
++    // Calculate the offset within the page using a bitwise AND operation with MASK
++    uint16_t offset = vaddr & MASK;
++    // Retrieve the byte from main memory using the page number and offset
++    *byte = main_mem[page_num][offset];
+     return 0;
+ }
+@@ -109,10 +136,25 @@ int store_byte(uint16_t vaddr, uint8_t byte) {
+     uint16_t c_pte;
+     if (virt_to_pte(vaddr, &c_pte) < 0)
+     {
+         return -1;
+     }
++
++    #if MEMORY_PTE_ATTRIBUTES_ACTIVE
++        // Check if the page is valid by examining the VALID_BIT in the page table entry
++        if(((c_pte & VALID_BIT) >> VALID_POS) == 0){
++            PAGE_FAULT(vaddr, "page not valid");
++            return -1;
++        }
++
++        if(((pte & RWX_BITS) >> RWX_POS) == R_PATTERN || ((pte & RWX_BITS) >> RWX_POS) == X_PATTERN)
++        {
++            PAGE_FAULT(vaddr, "read only page");
++            return -1;
++        }
++    #endif
++    uint8_t page_num = c_pte >> PAGE_NUM_SHIFT;
++    uint16_t offset = vaddr & MASK;
++    main_mem[page_num][offset] = byte;
+     return 0;
+ }
+ 
+@@ -235,13 +277,16 @@ void init_page_table(void) {
+         page_table[i] = ((MEMORY_PAGE_NUM -1) - i) << PAGE_NUM_SHIFT;
+ 
+ #if MEMORY_PTE_ATTRIBUTES_ACTIVE
+-        // TO COMPLETE: Make virtual pages 10 to 12 read-only
+-        
+-
+-        // TO COMPLETE: Valid bit
+-        
++		if (i >= 10 && i <= 12) {
++			page_table[i] |= (R_PATTERN << RWX_POS);
++		}
+ 
+-        // TO COMPLETE: Make virtual pages 5 to 8 not valid 
++		if (i >= 5 && i <= 8) {
++			page_table[i] |= (0 << VALID_POS);
++		} else {
++            // Others are valid
++			page_table[i] |= (1 << VALID_POS);
++		}
+ 
+ #endif
+     }
+@@ -272,7 +317,7 @@ int main(int argc, char *argv[]) {
+ 
+     /* ADD your code here for debug pourpuses */
+ 
+-    // print_page(0x0000, 32);
++    print_page(0x0000, 32);
+ 
+     return 0;
+ }
+-- 
+GitLab
+

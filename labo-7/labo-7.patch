@@ -1,0 +1,123 @@
+From 0959de76bdbf34cda5503b5bfab4aed3fec17ac1 Mon Sep 17 00:00:00 2001
+From: "kevin.auberson" <kevin.auberson@heig-vd.ch>
+Date: Thu, 9 Nov 2023 14:12:49 +0100
+Subject: [PATCH] Last commmit the functionality wasn't 100% functionnal, now
+ yes lab finished
+
+---
+ usr/src/sh.c | 63 ++++++++++++++++++++++------------------------------
+ 1 file changed, 26 insertions(+), 37 deletions(-)
+
+diff --git a/usr/src/sh.c b/usr/src/sh.c
+index cf2e9d3..b7a9ff6 100644
+--- a/usr/src/sh.c
++++ b/usr/src/sh.c
+@@ -130,25 +130,14 @@ void process_cmd(void) {
+ 	}
+ 
+ 	/* General case - prepare to launch the application */
+-	int isPipe = 0;
++	int pipe_fd[2], pid_pipe = 0, arg_pos2 = 0, isPiped = 0, res;
++	char *argv2[ARGS_MAX];
+ 	arg_pos = 0;
+-	while (tokens[arg_pos][0] != 0)
+-	{
+-		if(!strcmp(tokens[arg_pos++], "|")){
+-			isPipe = 1;
+-			break;
+-		}
+-	}
+-	
+-	if(isPipe){
+-		/* Prepare the arguments to be passed to exec() syscall */
+-		int pipe_fd[2], pid_pipe = 0, arg_pos2 = 0, isPiped = 0;
+-		char *argv2[ARGS_MAX];
+-		arg_pos = 0;
+-		while (tokens[arg_pos][0] != 0) {
++	/* Prepare the arguments to be passed to exec() syscall */
++	while (tokens[arg_pos][0] != 0) {
+ 			if(!isPiped && !strcmp(tokens[arg_pos], "|")){
+ 				argv[arg_pos] = NULL;
+-				isPiped = isPipe;
++				isPiped = 1;
+ 			}
+ 			else{
+ 				if(isPiped){
+@@ -162,40 +151,46 @@ void process_cmd(void) {
+ 			}
+ 			++arg_pos;
+ 		}
++	
++	if(isPiped){
+ 		/* Terminate the list of args properly */
+ 		argv2[arg_pos2] = NULL;
+ 
+-		pipe(pipe_fd);
+ 		pid_child = fork();
+ 		if (!pid_child) { /* Execution in the child */
+-			
++
++			pipe(pipe_fd);
++
+ 			pid_pipe = fork();
+-			if (!pid_pipe){
++
++			if(!pid_pipe){
+ 				close(pipe_fd[0]);
+-				dup2(pipe_fd[1],STDOUT_FILENO);
++				dup2(pipe_fd[1], STDOUT_FILENO);
+ 
+-				strcpy(filename, argv[0]);
+ 				/* We are looking for an executable with .elf extension */
++				strcpy(filename, argv[0]);
+ 				strcat(filename, ".elf");
+ 
+-				if (execv(filename, argv) == -1) {
+-				printf("%s: exec failed.\n", argv[0]);
+-				exit(-1);
+-				}
++				res = execv(filename, argv);
+ 				close(pipe_fd[1]);
+-			} else{
++				if (res == -1) {
++					printf("%s: exec failed.\n", argv[0]);
++					exit(-1);
++				}
++			}else{
+ 				close(pipe_fd[1]);
+ 				dup2(pipe_fd[0], STDIN_FILENO);
+-				
+-				strcpy(filename, argv2[0]);
++
+ 				/* We are looking for an executable with .elf extension */
++				strcpy(filename, argv2[0]);
+ 				strcat(filename, ".elf");
+ 
+-				if (execv(filename, argv2) == -1) {
+-					printf("%s: exec failed.\n", argv[0]);
++				res = execv(filename, argv2);
++				close(pipe_fd[0]);
++				if (res == -1) {
++					printf("%s: exec failed.\n", argv2[0]);
+ 					exit(-1);
+ 				}
+-				close(pipe_fd[0]);
+ 			}
+ 
+ 		} else { /* Execution in the parent */
+@@ -203,12 +198,6 @@ void process_cmd(void) {
+ 			waitpid(pid_child, NULL, 0);
+ 		}
+ 	}else{
+-		/* Prepare the arguments to be passed to exec() syscall */
+-		arg_pos = 0;
+-		while (tokens[arg_pos][0] != 0) {
+-			argv[arg_pos] = tokens[arg_pos];
+-			arg_pos++;
+-		}
+ 		/* Terminate the list of args properly */
+ 		argv[arg_pos] = NULL;
+ 
+-- 
+GitLab
+

@@ -1,0 +1,70 @@
+From d1cbc0c3607e02bf150e11aae8db355121794e66 Mon Sep 17 00:00:00 2001
+From: "kevin.auberson" <kevin.auberson@heig-vd.ch>
+Date: Thu, 30 Nov 2023 15:02:55 +0100
+Subject: [PATCH] Lab finished
+
+---
+ rapport.md | 38 ++++++++++++++++++++++++++++++++++++++
+ so3/kernel/process.c | 5 +++--
+ 2 file changed, 41 insertions(+), 2 deletions(-)
+
+diff --git a/rapport.md b/rapport.md
+index e69de29..9f2812f 100644
+--- a/rapport.md
++++ b/rapport.md
+@@ -0,0 +1,38 @@
++# Rapport - Lab 09
++
++## Question 1
++Lancer l’application « time_loop » en mode continu, en arrière-plan (avec le symbole &) depuis le shell. 
++Essayer d’exécuter des commandes dans le shell.
++Que se passe-t-il et pourquoi ?
++
++Au lancement de so3, le premier processus (shell) est créé avec pid 1 et passe les états new->ready->running.
++Le shell est maintenant disponible, puis nous exécutons "time_loop &". 
++Un second processus (time_loop) est créer avec pid 2 puis passe de l'état new à ready.
++Ce processus est en background du à &. Donc nous sommes toujours dans le processus shell.
++Nous exécutons maintenant "ls", un troisième processus (ls) est créer avec pid 3 puis passe de l'état new à ready. Ce processus est le processus enfant du shell.
++Le shell passe du coup dans l'état waiting qui exécute un waitpid sur le processus ls. 
++Etant donnée que ready est une fifo le processus time_loop passe dans l'état running est s'exécute, puis passe dans l'état zombie.
++La place est maintenant libéré et le processus ls passe dans l'état running et s'exécute. 
++Une fois terminer, il passe dans l'état zombie et renvoie sont PCB au processus shell.
++Le shell passe alors dans l'état ready puis running.
++
++
++## Question 2
++Changer la priorité du shell pour que le processus « time_loop » devienne plus prioritaire.
++Essayer d’éxecuter quelques commandes dans le shell.
++Que se passe-t-il et pourquoi ?
++
++Au lancement de so3, le premier processus (shell) est créé avec pid 1 et passe les états new->ready->running.
++Le shell est maintenant disponible, puis nous exécutons "time_loop &". 
++Un second processus (time_loop) est créer avec pid 2 et une priorité de 10 (priorité par défaut) puis passe de l'état new à ready. Maintenant nous exécutons la commande "renice 1 2".
++Cette commande va modifier la priorité du processus pid 1 (shell) et la mettre à 2 puis placé le processus pid dans l'état waiting->ready. 
++La priorité de celui-ci est donc plus basse que celle du processus pid 2.
++Donc l'éxécution du time_loop s'effectue, mais il est impossible de rependre la main avec le shell durant son execution dû à la difference de priorité. Une fois terminée le shell repasse à l'état running car le processus pid 2 passe dans l'état zombie. 
++
++
++## Question 3
++Refaire la manipulation en mode bloquant, toujours en lançant l’application en background.
++Comparer les deux modes et expliquer leurs différences de comportement.
++
++Le processus "time_loop" en mode bloquant peut être en état waiting pendant les intervalles d'attente gérés par la fonction usleep. Cela libère le terminal pour l'utilisation d'autres commandes dans le shell, le mettant potentiellement dans un état running même lorsque "time_loop" est en arrière-plan. Cette action n'est pas possible avec "time_loop" en continu.
++
+diff --git a/so3/kernel/process.c b/so3/kernel/process.c
+index 9f0834e..a80296f 100644
+--- a/so3/kernel/process.c
++++ b/so3/kernel/process.c
+@@ -98,8 +98,9 @@ pcb_t *find_proc_by_pid(uint32_t pid) {
+ }
+ 
+ int do_renice(uint32_t pid, uint32_t new_prio) {
+-	//TO COMPLETE
+-
++	
++	find_proc_by_pid(pid)->main_thread->prio = new_prio;
++	return 0;
+ }
+-- 
+GitLab
+

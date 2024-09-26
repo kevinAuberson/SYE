@@ -1,0 +1,194 @@
+From d7d5e9535f1cb83031e3dca0321c8e5924aaf87b Mon Sep 17 00:00:00 2001
+From: "kevin.auberson" <kevin.auberson@heig-vd.ch>
+Date: Sun, 28 Jan 2024 22:45:01 +0100
+Subject: [PATCH] end of lab
+
+---
+ usr/src/ln.c | 17 ++++++++++++++-
+ usr/src/ls.c | 60 ++++++++++++++++++++++++++++++++++++++++------------
+ 2 files changed, 63 insertions(+), 14 deletions(-)
+
+diff --git a/usr/src/ln.c b/usr/src/ln.c
+index 1bfb131..30c8faf 100644
+--- a/usr/src/ln.c
++++ b/usr/src/ln.c
+@@ -23,6 +23,21 @@ int main(int argc, char *argv[])
+ 	f_src = argv[1];
+ 	f_dst = argv[2];
+ 
+-	// TO COMPLETE
++	int fd = open(f_src, O_RDONLY);
++	if (fd < 0) {
++		perror("open");
++		return 1;
++	}
++
++	if (sys_symlink(fd, f_dst) < 0) {
++		perror("sys_symlink");
++		close(fd);
++		return 1;
++	}
++
++	if (close(fd) < 0) {
++		perror("close");
++		return 1;
++	}
+ 	return 0;
+ }
+diff --git a/usr/src/ls.c b/usr/src/ls.c
+index be64310..79d0cba 100644
+--- a/usr/src/ls.c
++++ b/usr/src/ls.c
+@@ -30,6 +30,8 @@
+ #include <sys/stat.h>
+ #include <syscall.h>
+ 
++#define BYTES_KILO 1024
++
+ /* Convert a size in bytes to a human readable format
+  * Only one number after the comma will be displayed
+  */
+@@ -37,7 +39,15 @@ char *bytes_to_human_readable(const unsigned long int bytes, char *buf)
+ {
+ 	char *prefix[] = {"", "K", "M", "G", "T"};
+ 
+-	//TO COMPLETE: Convert to human readable format
++	int index = 0;
++	double size = (double)bytes;
++
++	while (size >= BYTES_KILO)
++	{
++		size /= BYTES_KILO;
++		index ++;
++	}
++	sprintf(buf, "%g%s", size, prefix[index]);
+ 
+ 	return buf;
+ }
+@@ -47,18 +47,20 @@ char *bytes_to_human_readable(const unsigned long int bytes, char *buf)
+ 		size /= BYTES_KILO;
+ 		index ++;
+ 	}
+-	sprintf(buf, "%g%s", size, prefix[index]);
++	sprintf(buf, "%6.1lf%s", size, prefix[index]);
+ 
+ 	return buf;
+ }
+ 
+ char *attr_to_str(mode_t mod, char *buf)
+ {
+-
+-	buf[0] = '-';
+-	buf[4] = 0;
+-
+-
++// Convert file mode to a string representation
++    if (mod & AM_RD)
++		buf[1] = 'r';
++	if (mod & AM_WR)
++		buf[2] = 'w';
++	if (mod & AM_EX)
++		buf[3] = 'x';
+ 
+ 	return buf;
+ }
+@@ -67,7 +77,20 @@ void print_info_file(const char *file, int is_dir, int extended)
+ 		printf("%s%s\n", file, is_dir ? "/" : "");
+ 
+ 	} else {
+-		//TO COMPLETE: Print extended informations about file
++		
++		err = stat(file, &f_stat);
++		if(err < 0){
++			perror("stat");
++			return;
++		}
++
++		if(is_dir){
++			modes[0] ='d';
++		}else if(){
++
++		}
++
++		printf("%s%s | %s | %s | %s");
+ 	}
+ }
+@@ -71,11 +73,10 @@ void print_info_file(const char *file, int is_dir, int extended)
+ 	char modes[5];
+ 	struct stat f_stat;
+ 	time_t time;
+-	struct tm tm;
++	struct tm *tm;
+ 
+ 	if (!extended) {
+ 		printf("%s%s\n", file, is_dir ? "/" : "");
+-
+ 	} else {
+ 		
+ 		err = stat(file, &f_stat);
+@@ -83,14 +84,47 @@ void print_info_file(const char *file, int is_dir, int extended)
+ 			perror("stat");
+ 			return;
+ 		}
++		attr_to_str(f_stat.st_mode, modes);
+ 
++		tm = localtime(&f_stat.st_mtime);
++		sprintf(date, "%d-%d-%d %d:%d", tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min);
++		
+ 		if(is_dir){
+ 			modes[0] ='d';
+-		}else if(){
+-
+ 		}
+ 
+-		printf("%s%s | %s | %s | %s");
++		bytes_to_human_readable(f_stat.st_size, size);
++
++		if(f_stat.st_mode & AM_SYM){
++			modes[0] = "l";
++
++
++			int fd = open(file, O_PATH | O_NOFOLLOW);
++			if (fd < 0) {
++			perror("open");
++				return;
++			}
++
++			char name[80];
++			int n = read(fd, name, 80);
++			if (n < 0) {
++				perror("read");
++				close(fd);
++				return;
++			}
++
++			name[n] = 0;
++
++			if (close(fd) < 0) {
++				perror("close");
++				return;
++			}
++
++			printf(	"%s | %s | %s | %s -> %s\n", modes, date, size, file, name );
++
++		} else {
++			printf("%s | %s | %s | %s%s\n", modes, date, size, file, is_dir ? "/" : "");
++		}
+ 	}
+ }
+ 
+@@ -137,9 +171,9 @@ int main(int argc, char **argv)
+ 
+ 	stream = opendir(dir);
+ 
+-	if (stream == NULL)
++	if (stream == NULL){
+ 		exit(1);
+-
++	}
+ 	while ((p_entry = readdir(stream)) != NULL) {
+ 		print_info_file(p_entry->d_name, p_entry->d_type == DT_DIR,
+ 				extended);
+-- 
+GitLab
+

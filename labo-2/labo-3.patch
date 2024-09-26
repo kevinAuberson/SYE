@@ -1,0 +1,70 @@
+From 991d1b58e6026cc67fe802296ca512dbf1fd47d3 Mon Sep 17 00:00:00 2001
+From: "kevin.auberson" <kevin.auberson@heig-vd.ch>
+Date: Tue, 3 Oct 2023 16:55:36 +0200
+Subject: [PATCH] Lab03 finish
+
+---
+ so3/devices/timer/arm_timer.c | 3 +++
+ so3/include/version.h         | 2 +-
+ usr/src/sh.c                  | 9 ++++++---
+ 3 files changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/so3/devices/timer/arm_timer.c b/so3/devices/timer/arm_timer.c
+index 7ced21a..e3cd547 100644
+--- a/so3/devices/timer/arm_timer.c
++++ b/so3/devices/timer/arm_timer.c
+@@ -87,6 +87,9 @@ static irq_return_t timer_isr(int irq, void *dev) {
+ #else
+ 		jiffies++;
+ 
++		//modulo 80 for frequency
++		if(!(jiffies % 80)) printk("Compteur : %lld\n", jiffies);
++
+ 		raise_softirq(TIMER_SOFTIRQ);
+ #endif
+ 	}
+diff --git a/so3/include/version.h b/so3/include/version.h
+index 49e2d42..011c59c 100644
+--- a/so3/include/version.h
++++ b/so3/include/version.h
+@@ -27,7 +27,7 @@
+  * - Upgrade U-boot to 2022.04
+  */
+ 
+-#define SO3_KERNEL_VERSION "2023.6.0"
++#define SO3_KERNEL_VERSION "2023.6.1"
+ 
+ #endif /* VERSION_H */
+ 
+diff --git a/usr/src/sh.c b/usr/src/sh.c
+index 473e129..5715575 100644
+--- a/usr/src/sh.c
++++ b/usr/src/sh.c
+@@ -43,10 +43,13 @@ void parse_token(char *str) {
+ 	if (!next_token)
+ 		return;
+ 
++	printf("%s\n", next_token);
+ 	strcpy(tokens[i++], next_token);
+-
+-	while ((next_token = strtok(NULL, " ")) != NULL)
++	
++	while ((next_token = strtok(NULL, " ")) != NULL){
++		printf("%s\n", next_token);
+ 		strcpy(tokens[i++], next_token);
++	}
+ }
+ 
+ /*
+@@ -196,7 +199,7 @@ void main(int argc, char *argv[])
+ 
+ 		if (strcmp(user_input, ""))
+ 			parse_token(user_input);
+-
++		
+ 		/* Check if there is at least one token to be processed */
+ 		if (tokens[0][0] != 0)
+ 			process_cmd();
+-- 
+GitLab
+

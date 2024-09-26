@@ -1,0 +1,229 @@
+From 38fe2dd4367d0701d4d7b5846f8ed06b39aec01b Mon Sep 17 00:00:00 2001
+From: "kevin.auberson" <kevin.auberson@heig-vd.ch>
+Date: Tue, 31 Oct 2023 17:23:11 +0100
+Subject: [PATCH] Lab05 finished
+
+---
+ rapport.md                                    | 131 +++
+ usr/host/threads.c                            |  52 +-
+ 2 files changed, 183 insertions(+), 3 deletions(-)
+
+
+diff --git a/rapport.md b/rapport.md
+index e69de29..a178783 100644
+--- a/rapport.md
++++ b/rapport.md
+@@ -0,0 +1,131 @@
++reds@reds2023:~/sye23_auberson_kevin/usr/host$ time ./threads.elf 1 "lorem.txt"
++text_size 5747
++Number of a: 408
++Number of b: 45
++Number of c: 216
++Number of d: 135
++Number of e: 534
++Number of f: 21
++Number of g: 78
++Number of h: 6
++Number of i: 465
++Number of j: 9
++Number of k: 0
++Number of l: 306
++Number of m: 189
++Number of n: 291
++Number of o: 210
++Number of p: 135
++Number of q: 84
++Number of r: 219
++Number of s: 402
++Number of t: 402
++Number of u: 435
++Number of v: 72
++Number of w: 0
++Number of x: 0
++Number of y: 0
++Number of z: 0
++
++real    0m0.009s
++user    0m0.004s
++sys     0m0.002s
++--------------------------------------------------------
++reds@reds2023:~/sye23_auberson_kevin/usr/host$ time ./threads.elf 2 "lorem.txt"
++text_size 5747
++Number of a: 408
++Number of b: 45
++Number of c: 216
++Number of d: 135
++Number of e: 534
++Number of f: 21
++Number of g: 78
++Number of h: 6
++Number of i: 465
++Number of j: 9
++Number of k: 0
++Number of l: 306
++Number of m: 189
++Number of n: 291
++Number of o: 210
++Number of p: 135
++Number of q: 84
++Number of r: 219
++Number of s: 402
++Number of t: 402
++Number of u: 435
++Number of v: 72
++Number of w: 0
++Number of x: 0
++Number of y: 0
++Number of z: 0
++
++real    0m0.004s
++user    0m0.003s
++sys     0m0.000s
++--------------------------------------------------------
++reds@reds2023:~/sye23_auberson_kevin/usr/host$ time ./threads.elf 3 "lorem.txt"
++text_size 5747
++Number of a: 408
++Number of b: 45
++Number of c: 216
++Number of d: 135
++Number of e: 534
++Number of f: 21
++Number of g: 78
++Number of h: 6
++Number of i: 465
++Number of j: 9
++Number of k: 0
++Number of l: 307
++Number of m: 189
++Number of n: 291
++Number of o: 210
++Number of p: 135
++Number of q: 84
++Number of r: 219
++Number of s: 402
++Number of t: 402
++Number of u: 435
++Number of v: 72
++Number of w: 0
++Number of x: 0
++Number of y: 0
++Number of z: 0
++
++real    0m0.007s
++user    0m0.005s
++sys     0m0.001s
++--------------------------------------------------------
++reds@reds2023:~/sye23_auberson_kevin/usr/host$ time ./threads.elf 4 "lorem.txt"
++text_size 5747
++Number of a: 408
++Number of b: 45
++Number of c: 216
++Number of d: 135
++Number of e: 535
++Number of f: 21
++Number of g: 78
++Number of h: 6
++Number of i: 465
++Number of j: 9
++Number of k: 0
++Number of l: 307
++Number of m: 189
++Number of n: 292
++Number of o: 211
++Number of p: 135
++Number of q: 84
++Number of r: 220
++Number of s: 404
++Number of t: 403
++Number of u: 435
++Number of v: 72
++Number of w: 0
++Number of x: 0
++Number of y: 0
++Number of z: 0
++
++real    0m0.005s
++user    0m0.005s
++sys     0m0.000s
+diff --git a/usr/host/threads.c b/usr/host/threads.c
+index 07cdd3c..f62cb10 100644
+--- a/usr/host/threads.c
++++ b/usr/host/threads.c
+@@ -27,7 +27,13 @@ void *count_letters(void * args) {
+ 	count_param_t *params = (count_param_t *) args;
+ 	
+ 	//TO COMPLETE: Count each letter's number of occurences in the part of the text assigned to this thread. Processing must be case-insensitive ('A' and 'a' both count as an occurence of A). Store the results in the given argument structure 
+-
++	for(int i = 0; i < params->size; ++i)
++        if(isalpha(params->text_pointer[i]) && islower(params->text_pointer[i])){
++            params->counters[params->text_pointer[i]-A_LOWER_OFFSET] ++;
++		}else if (isalpha(params->text_pointer[i]) && isupper(params->text_pointer[i])){
++			params->counters[params->text_pointer[i]-A_UPPER_OFFSET] ++;
++		}
++		
+ 	return NULL;
+ }
+ 
+@@ -126,10 +132,48 @@ int main(int argc, char **argv)
+ 		return EXIT_FAILURE;
+ 	}
+     // TO COMPLETE: Load the text and its size
+-
++	char *text = buffer_from_file(filename);
++	size_t sizeTxt = strlen(text);
++	size_t nbCharByThread = sizeTxt/thread_num;
++	size_t nbCharLastThread = sizeTxt % thread_num;
+     // TO COMPLETE: Configure and launch threads
++	pthread_t* threads = (pthread_t*)calloc(thread_num, sizeof(pthread_t));
++	if(threads == NULL){
++		printf("ERROR: Cannot allocate memory for threads");
++		free(text);
++		exit(-1);
++	}
++
++	count_param_t* threads_count = (count_param_t*)calloc(thread_num, sizeof(count_param_t));
++	if(threads_count == NULL){
++		printf("ERROR: Cannot allocate memory for param");
++		free(text);
++		free(threads);
++		exit(-1);
++	}
++
++	for(int i = 0; i < thread_num; ++i)
++	{
++		threads_count[i].text_pointer = text + (i * nbCharByThread);
++		threads_count[i].size = nbCharByThread;
++		if((i + 1) < thread_num)		
++			threads_count[i].size += nbCharLastThread;
++		
++		if(pthread_create(&threads[i],NULL, count_letters, (void *)&threads_count[i])){
++			printf("ERROR: Cannot create thread # %d\n", i);
++			exit(-1);
++		}
++	}
+ 
+     // TO COMPLETE: Join the threads and compile the results
++	for(int i = 0; i < thread_num; ++i)
++	{
++		if(pthread_join(threads[i], NULL)){
++			printf("ERROR: Cannot join thread # %d\n", i);
++		}
++		for(int j = 0; j < LETTERS_NB; ++j)
++			result_counters[j] += threads_count[i].counters[j];
++	}
+ 
+     /* Display results */
+ 	for (int i = 0; i < LETTERS_NB; ++i) {
+@@ -137,6 +181,8 @@ int main(int argc, char **argv)
+ 	}
+ 
+ 	// TO COMPLETE: Free allocated memory
+-
++	free(threads);
++	free(threads_count);
++	free(text);
+ 	return EXIT_SUCCESS;
+ }
+-- 
+GitLab
+
